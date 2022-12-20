@@ -15,21 +15,60 @@
     <input type="file" id="import"/>
     <div id="main"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>
+<script src="note.js" type="module"></script>
+<script type="module">
+import { TIME, NOTE } from "./note.js";
 window.onload = () => {
+    NOTE.clear_log();
     document.getElementById("import").onchange = (e) => {
-        console.log("import started");
+        NOTE.time("Importing Budget");
         if (e.target.files.length > 0) {
             const file_reader = new FileReader();
-            file_reader.onload = (e) => {
-                console.log("here");
-                const workbook = XLSX.read(e.target.result);
-                console.log(workbook);
-            };
+            file_reader.onload = process_file;
             file_reader.readAsArrayBuffer(e.target.files[0]);
         }
     };
 };
+
+const process_file = (e) => {
+    const workbook = XLSX.read(e.target.result);
+    const sheets = workbook.SheetNames;
+    if (sheets.length < 1 || sheets[0] != "BUDGET VS ACTUAL-ALL DEPTS NEW") {
+        NOTE.time("ERROR: First sheet must be 'BUDGET VS ACTUAL-ALL DEPTS NEW'");
+        return;
+    }
+    const sheet = workbook.Sheets["BUDGET VS ACTUAL-ALL DEPTS NEW"];
+    NOTE.log(XLSX.utils.sheet_to_json(sheet, {header: 1}));
+};
+
+const DEPT_MAP = {
+    100: 'Admin',
+    105: 'Management',
+    110: 'Membership',
+    120: 'Board',
+    130: 'Fundraising',
+    140: 'Vol. Appr.',
+    150: 'Website',
+    160: 'Awards',
+    170: 'Archives',
+    200: 'Source',
+    300: 'Spec. Sess.',
+    350: 'Ref. Lib.',
+    370: 'Lend. Lib.',
+    400: 'Convention',
+    500: 'The Paper',
+    510: 'The Fold',
+    550: 'Development',
+    600: 'Exhibition',
+    610: 'Holiday Tree',
+    620: 'OBC',
+    630: 'Annual Gift',
+    700: 'Publications',
+    800: 'PCOC',
+    850: 'COG serv.',
+    900: 'O. Connect',
+};
+
 </script>
 </body>
 </html>
