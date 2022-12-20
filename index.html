@@ -12,8 +12,25 @@
     </div>
     <div>© Jason S. Ku 2022</div>
     <hr>
+    <input type="file" id="import"/>
     <div id="main"></div>
-    <script></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+window.onload = () => {
+    document.getElementById("import").onchange = (e) => {
+        console.log("import started");
+        if (e.target.files.length > 0) {
+            const file_reader = new FileReader();
+            file_reader.onload = (e) => {
+                console.log("here");
+                const workbook = XLSX.read(e.target.result);
+                console.log(workbook);
+            };
+            file_reader.readAsArrayBuffer(e.target.files[0]);
+        }
+    };
+};
+</script>
 </body>
 </html>
 
