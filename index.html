@@ -22,11 +22,15 @@
             <td><input type="file" id="trans"/></td>
         </tr>
     </table>
-    <div id="main"></div>
+    <hr>
+    <div id="export"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="note.js" type="module"></script>
 <script type="module">
+// To Do:
+// - check date import
+// - deal with comma parsing for descriptions
 import { NOTE } from "./note.js";
 window.onload = () => {
     NOTE.clear_log();
@@ -42,6 +46,7 @@ window.onload = () => {
             NOTE.time(`File read: ${budget_input.value}`);
             budget_data = process_budget_data(file_reader.result);
             NOTE.time("*** Budget data import complete ***");
+            // console.log(budget_data);
             NOTE.log("");
             if (trans_data != undefined) { 
                 process_files(budget_data, trans_data);
@@ -56,9 +61,10 @@ window.onload = () => {
             NOTE.time(`File read: ${trans_input.value}`);
             trans_data = process_trans_data(file_reader.result);
             NOTE.time("*** Transation data import complete ***");
+            // console.log(trans_data);
             NOTE.log("");
             if (budget_data != undefined) { 
-                process_files(budget_data, trans_data);
+                export_data(budget_data, trans_data);
             }
         };
         file_reader.readAsArrayBuffer(trans_input.files[0]);
@@ -67,25 +73,67 @@ window.onload = () => {
     NOTE.log("");
 };
 
-const process_budget_data = (file) => {
-    NOTE.time("Extracting sheet from budget file");
+const extract_first_sheet_name = (file, name) => {
     const workbook = XLSX.read(file);
     const sheets = workbook.SheetNames;
-    if (sheets.length < 1 || sheets[0] != "BUDGET VS ACTUAL-ALL DEPTS NEW") {
-        NOTE.time("ERROR: 1st sheet name not 'BUDGET VS ACTUAL-ALL DEPTS NEW'");
+    if (sheets.length < 1 || sheets[0] != name) {
+        NOTE.time(`ERROR: 1st sheet name not '${name}'`);
         return;
     }
-    const sheet = workbook.Sheets["BUDGET VS ACTUAL-ALL DEPTS NEW"];
+    return workbook.Sheets[name];
+};
+
+const check_cobj_dept = (cobj_dept, line) => {
+    if (!(
+        (typeof cobj_dept == "string") && 
+        (cobj_dept.length == 7) && 
+        (cobj_dept[3] == "-"))
+    ) {
+        return;   // not a valid format 
+    }
+    const [cobj, dept] = cobj_dept.split("-");
+    if (!DEPT_MAP.has(dept)) {
+        NOTE.time(`Skipping line ${line}: Department ${dept} not recognized`);
+        return;
+    }
+    if ((cobj[0] != "4") && (cobj[0] != "5")) {
+        NOTE.time(`Skipping line ${line}: Cost Obj ${cobj} neither revenue nor expense`);
+        return;
+    }
+    const type = (cobj[0] == "4") ? "rev" : "exp";
+    return {dept, cobj, type};
+};
+
+const extract_amount = (debit, credit, line) => {
+    const valid_credit = !isNaN(credit);
+    const valid_debit = !isNaN(debit);
+    if (valid_debit && !valid_credit) {
+        return - Number(debit);
+    }
+    if (valid_credit && !valid_debit) {
+        return Number(credit);
+    }
+    return;
+};
+
+const excelDate_2_JSDate = (ex_date) => {
+    return new Date(Math.round((ex_date - 25569)*86400*1000));
+};
+
+const process_budget_data = (file) => {
+    NOTE.time("Extracting sheet from budget file");
+    const sheet = extract_first_sheet_name(file, "BUDGET VS ACTUAL-ALL DEPTS NEW");
+    if (sheet == undefined) { return; }
 
     NOTE.time("Initializing container for data");
-    const out = new Map();  // imported data
+    const out = {}; // imported data
     for (const [code, name] of DEPTS_CODE_NAME) {
-        const data = new Map();
-        data.set("name", name);
-        for (const col of COLUMNS) {
-            data.set(col, 0);
+        const data = {};
+        data["name"] = name;
+        for (const field of BUDGET_FIELDS) {
+            data[field] = 0;
         }
-        out.set(code, data);
+        out[code] = data;
     }
 
     NOTE.time("Extracting data from sheet");
@@ -93,53 +141,116 @@ const process_budget_data = (file) => {
     for (let i = 0; i < lines.length; ++i) {
         const line = lines[i];
         const cobj_dept = line[1];
-        if (typeof cobj_dept == "string" && cobj_dept.length == 7) {
-            const [cobj, dept] = cobj_dept.split("-");
-            if (!out.has(dept)) {
-                NOTE.time(`ERROR: Department ${dept} not recognized`);
-                NOTE.time(` -- skipping line ${i}`);
-                continue;
-            }
-            const data = out.get(dept);
-            if ((cobj[0] != "4") && (cobj[0] != "5")) {
-                NOTE.time("ERROR: GL Account line neither revenue nor expense");
-                NOTE.time(` -- skipping line ${i}`);
-                continue;
-            }
-            const type = (cobj[0] == "4") ? "rev" : "exp";
-            for (const [col, name] of [
-                [2, "_bgt_mon"],
-                [3, "_act_mon"],
-                [5, "_bgt_ytd"],
-                [6, "_act_ytd"],
-                [8, "_bgt_tot"],
-            ]) {
-                const key = type + name;
-                data.set(key, data.get(key) + Number(line[col]));
-            }
+        const check = check_cobj_dept(cobj_dept, i);
+        if (check == undefined) { continue; }
+        const {dept, cobj, type} = check;
+
+        const data = out[dept];
+        for (const [col, name] of [
+            [2, "_bgt_mon"],
+            [3, "_act_mon"],
+            [5, "_bgt_ytd"],
+            [6, "_act_ytd"],
+            [8, "_bgt_tot"],
+        ]) {
+            const key = type + name;
+            data[key] += Number(line[col]);
         }
     }
     
     NOTE.time("Calculating additional info from imported data");
-    for (const [code, data] of out) {
+    for (const code in out) {
+        const data = out[code];
         for (const s of ["bgt_tot", "bgt_ytd", "act_ytd", "act_mon"]) {
-            data.set("net_" + s, data.get("rev_" + s) - data.get("exp_" + s));
+            data["net_" + s] = data["rev_" + s] - data["exp_" + s];
         }
-        data.set("net_act_old", data.get("net_act_ytd") - data.get("net_act_mon"));
-        const max_rev = data.get("rev_bgt_tot");
-        const max_exp = data.get("exp_bgt_tot");
-        data.set("mag_bgt_tot", (max_rev < max_exp) ? max_exp : max_rev);
+        data["net_act_old"] = data["net_act_ytd"] - data["net_act_mon"];
+        const max_rev = data["rev_bgt_tot"];
+        const max_exp = data["exp_bgt_tot"];
+        data["mag_bgt_tot"] = (max_rev < max_exp) ? max_exp : max_rev;
     }
 
     return out;
 };
 
 const process_trans_data = (file) => {
+    NOTE.time("Extracting sheet from transaction file");
+    const sheet = extract_first_sheet_name(file, "General Ledger");
+    if (sheet == undefined) { return; }
 
+    NOTE.time("Initializing container for data");
+    const out = [];  // imported data
+
+    NOTE.time("Extracting data from sheet");
+    const lines = XLSX.utils.sheet_to_json(sheet, {header: 1});
+    for (let i = 0; i < lines.length; ++i) {
+        const line = lines[i];
+        const cobj_dept = line[0];
+        const check = check_cobj_dept(cobj_dept, i);
+        if (check == undefined) { continue; }
+        const {dept, cobj} = check;
+
+        const amount = extract_amount(line[6], line[7], i);
+        if (amount == undefined) { continue; }
+
+        const name = DEPT_MAP.get(dept);
+        const account = line[1];
+        const date = excelDate_2_JSDate(line[2]);
+        const description = line[5];
+
+        out.push({name, dept, cobj, account, date, description, amount});
+    }
+    return out;
 };
 
-const process_files = (budget_data, trans_data) => {
+const create_export_interface = (date, data) => {
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = String(date.getFullYear());
+    const export_div = document.getElementById("export");
+    for (const [label, type, ext] of [
+        ["PDF", "fig", "pdf"], 
+        ["Budget Summary", "Tdata", "csv"], 
+        ["Transactions", "trans", "csv"], 
+    ]) {
+        const link = document.createElement("a");
+        const button = document.createElement("input");
+        const d = data[type] ? window.URL.createObjectURL(data[type]) : "";
+        export_div.appendChild(link); 
+        link.appendChild(button); 
+        link.setAttribute("download", `${year}_${month}_${type}.${ext}`);
+        link.setAttribute("href", d);
+        button.setAttribute("type", "button");
+        button.setAttribute("value", label);
+    }
+};
+
+const export_data = (budget_data, trans_data) => {
     NOTE.time("*** Generating data outputs ***");
+    const budget_lines = [];
+    budget_lines.push([""].concat(BUDGET_FIELDS).join(","));
+    for (const [code, name] of DEPTS_CODE_NAME) {
+        const data = budget_data[code];
+        const line = [name];
+        for (const field of BUDGET_FIELDS) {
+            line.push(data[field]);
+        }
+        budget_lines.push(line.join(","));
+    }
+    const trans_lines = [];
+    trans_lines.push(TRANS_FIELDS.join(","));
+    for (const trans of trans_data) {
+        const line = [];
+        for (const field of TRANS_FIELDS) {
+            line.push(trans[field]);
+        }
+        trans_lines.push(line.join(","));
+    }
+    const data = {
+        fig: undefined,
+        Tdata: new Blob([budget_lines.join("\n")], {type: "text/plain"}),
+        trans: new Blob([trans_lines.join("\n")], {type: "text/plain"}),
+    };
+    create_export_interface(trans_data[0].date, data);
     NOTE.time("*** Data output generation complete ***");
 };
 
@@ -153,6 +264,8 @@ const DEPTS_CODE_NAME = [
     ["150", "Website"],
     ["160", "Awards"],
     ["170", "Archives"],
+    ["180", "Scholarship"],
+    ["190", "Other Donations"],
     ["200", "Source"],
     ["300", "Spec. Sess."],
     ["350", "Ref. Lib."],
@@ -167,11 +280,22 @@ const DEPTS_CODE_NAME = [
     ["630", "Annual Gift"],
     ["700", "Publications"],
     ["800", "PCOC"],
+    ["810", "Chicago Con"],
     ["850", "COG serv."],
     ["900", "O. Connect"],
+    ["910", "Video Man."],
+    ["950", "Unconvention"],
+    ["951", "WOD Event"],
+    ["952", "FoldFest Sp"],
+    ["955", "Gather"],
 ];
 
-const COLUMNS = [
+const DEPT_MAP = new Map();
+for (const [code, dept] of DEPTS_CODE_NAME) {
+    DEPT_MAP.set(code, dept);
+}
+
+const BUDGET_FIELDS = [
     "rev_bgt_tot",
     "rev_bgt_ytd",
     "rev_bgt_mon",
@@ -182,6 +306,22 @@ const COLUMNS = [
     "exp_bgt_mon",
     "exp_act_ytd",
     "exp_act_mon",
+    "net_bgt_tot",
+    "net_bgt_ytd",
+    "net_act_ytd",
+    "net_act_mon",
+    "net_act_old",
+    "mag_bgt_tot",
+];
+
+const TRANS_FIELDS = [
+    "name", 
+    "dept", 
+    "cobj", 
+    "account", 
+    "date", 
+    "description", 
+    "amount",
 ];
 
 </script>
