@@ -12,62 +12,177 @@
     </div>
     <div>© Jason S. Ku 2022</div>
     <hr>
-    <input type="file" id="import"/>
+    <table>
+        <tr>
+            <td>Budget XLSX</td>
+            <td><input type="file" id="budget"/></td>
+        </tr>
+        <tr>
+            <td>Transactions XLSX</td>
+            <td><input type="file" id="trans"/></td>
+        </tr>
+    </table>
     <div id="main"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="note.js" type="module"></script>
 <script type="module">
-import { TIME, NOTE } from "./note.js";
+import { NOTE } from "./note.js";
 window.onload = () => {
     NOTE.clear_log();
-    document.getElementById("import").onchange = (e) => {
-        NOTE.time("Importing Budget");
-        if (e.target.files.length > 0) {
-            const file_reader = new FileReader();
-            file_reader.onload = process_file;
-            file_reader.readAsArrayBuffer(e.target.files[0]);
-        }
+    NOTE.time("*** Starting Setup ***");
+    const budget_input = document.getElementById("budget");
+    const trans_input = document.getElementById("trans");
+    let budget_data = undefined;
+    let trans_data = undefined;
+    budget_input.onchange = () => {
+        NOTE.time("*** Importing Budget data ***");
+        const file_reader = new FileReader();
+        file_reader.onload = () => {
+            NOTE.time(`File read: ${budget_input.value}`);
+            budget_data = process_budget_data(file_reader.result);
+            NOTE.time("*** Budget data import complete ***");
+            NOTE.log("");
+            if (trans_data != undefined) { 
+                process_files(budget_data, trans_data);
+            }
+        };
+        file_reader.readAsArrayBuffer(budget_input.files[0]);
     };
+    trans.onchange = () => {
+        NOTE.time("*** Importing Transactions data ***");
+        const file_reader = new FileReader();
+        file_reader.onload = () => {
+            NOTE.time(`File read: ${trans_input.value}`);
+            trans_data = process_trans_data(file_reader.result);
+            NOTE.time("*** Transation data import complete ***");
+            NOTE.log("");
+            if (budget_data != undefined) { 
+                process_files(budget_data, trans_data);
+            }
+        };
+        file_reader.readAsArrayBuffer(trans_input.files[0]);
+    };
+    NOTE.time("*** Setup Complete ***");
+    NOTE.log("");
 };
 
-const process_file = (e) => {
-    const workbook = XLSX.read(e.target.result);
+const process_budget_data = (file) => {
+    NOTE.time("Extracting sheet from budget file");
+    const workbook = XLSX.read(file);
     const sheets = workbook.SheetNames;
     if (sheets.length < 1 || sheets[0] != "BUDGET VS ACTUAL-ALL DEPTS NEW") {
-        NOTE.time("ERROR: First sheet must be 'BUDGET VS ACTUAL-ALL DEPTS NEW'");
+        NOTE.time("ERROR: 1st sheet name not 'BUDGET VS ACTUAL-ALL DEPTS NEW'");
         return;
     }
     const sheet = workbook.Sheets["BUDGET VS ACTUAL-ALL DEPTS NEW"];
-    NOTE.log(XLSX.utils.sheet_to_json(sheet, {header: 1}));
+
+    NOTE.time("Initializing container for data");
+    const out = new Map();  // imported data
+    for (const [code, name] of DEPTS_CODE_NAME) {
+        const data = new Map();
+        data.set("name", name);
+        for (const col of COLUMNS) {
+            data.set(col, 0);
+        }
+        out.set(code, data);
+    }
+
+    NOTE.time("Extracting data from sheet");
+    const lines = XLSX.utils.sheet_to_json(sheet, {header: 1});
+    for (let i = 0; i < lines.length; ++i) {
+        const line = lines[i];
+        const cobj_dept = line[1];
+        if (typeof cobj_dept == "string" && cobj_dept.length == 7) {
+            const [cobj, dept] = cobj_dept.split("-");
+            if (!out.has(dept)) {
+                NOTE.time(`ERROR: Department ${dept} not recognized`);
+                NOTE.time(` -- skipping line ${i}`);
+                continue;
+            }
+            const data = out.get(dept);
+            if ((cobj[0] != "4") && (cobj[0] != "5")) {
+                NOTE.time("ERROR: GL Account line neither revenue nor expense");
+                NOTE.time(` -- skipping line ${i}`);
+                continue;
+            }
+            const type = (cobj[0] == "4") ? "rev" : "exp";
+            for (const [col, name] of [
+                [2, "_bgt_mon"],
+                [3, "_act_mon"],
+                [5, "_bgt_ytd"],
+                [6, "_act_ytd"],
+                [8, "_bgt_tot"],
+            ]) {
+                const key = type + name;
+                data.set(key, data.get(key) + Number(line[col]));
+            }
+        }
+    }
+    
+    NOTE.time("Calculating additional info from imported data");
+    for (const [code, data] of out) {
+        for (const s of ["bgt_tot", "bgt_ytd", "act_ytd", "act_mon"]) {
+            data.set("net_" + s, data.get("rev_" + s) - data.get("exp_" + s));
+        }
+        data.set("net_act_old", data.get("net_act_ytd") - data.get("net_act_mon"));
+        const max_rev = data.get("rev_bgt_tot");
+        const max_exp = data.get("exp_bgt_tot");
+        data.set("mag_bgt_tot", (max_rev < max_exp) ? max_exp : max_rev);
+    }
+
+    return out;
 };
 
-const DEPT_MAP = {
-    100: 'Admin',
-    105: 'Management',
-    110: 'Membership',
-    120: 'Board',
-    130: 'Fundraising',
-    140: 'Vol. Appr.',
-    150: 'Website',
-    160: 'Awards',
-    170: 'Archives',
-    200: 'Source',
-    300: 'Spec. Sess.',
-    350: 'Ref. Lib.',
-    370: 'Lend. Lib.',
-    400: 'Convention',
-    500: 'The Paper',
-    510: 'The Fold',
-    550: 'Development',
-    600: 'Exhibition',
-    610: 'Holiday Tree',
-    620: 'OBC',
-    630: 'Annual Gift',
-    700: 'Publications',
-    800: 'PCOC',
-    850: 'COG serv.',
-    900: 'O. Connect',
+const process_trans_data = (file) => {
+
 };
+
+const process_files = (budget_data, trans_data) => {
+    NOTE.time("*** Generating data outputs ***");
+    NOTE.time("*** Data output generation complete ***");
+};
+
+const DEPTS_CODE_NAME = [
+    ["100", "Admin"],
+    ["105", "Management"],
+    ["110", "Membership"],
+    ["120", "Board"],
+    ["130", "Fundraising"],
+    ["140", "Vol. Appr."],
+    ["150", "Website"],
+    ["160", "Awards"],
+    ["170", "Archives"],
+    ["200", "Source"],
+    ["300", "Spec. Sess."],
+    ["350", "Ref. Lib."],
+    ["370", "Lend. Lib."],
+    ["400", "Convention"],
+    ["500", "The Paper"],
+    ["510", "The Fold"],
+    ["550", "Development"],
+    ["600", "Exhibition"],
+    ["610", "Holiday Tree"],
+    ["620", "OBC"],
+    ["630", "Annual Gift"],
+    ["700", "Publications"],
+    ["800", "PCOC"],
+    ["850", "COG serv."],
+    ["900", "O. Connect"],
+];
+
+const COLUMNS = [
+    "rev_bgt_tot",
+    "rev_bgt_ytd",
+    "rev_bgt_mon",
+    "rev_act_ytd",
+    "rev_act_mon",
+    "exp_bgt_tot",
+    "exp_bgt_ytd",
+    "exp_bgt_mon",
+    "exp_act_ytd",
+    "exp_act_mon",
+];
 
 </script>
 </body>
