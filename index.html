@@ -81,12 +81,12 @@ const construct_pdf = () => {
     const exp_str = [1,2,3,4].join(",");
     const net_str = [1,2,3,4].join(",");
     for (const [text, x, y, size, style] of [
-        ["OrigamiUSA Budget Report 2022-11", 4.25, 0.5, 14, "bold"],
-        [`Revenue\n$[${rev_str}]K`, 1, 1, 14, "bold"],
-        [`Expense\n$[${exp_str}]K`, 7.5, 1, 14, "bold"],
-        ["$[ mon-act , ytd-act , ytd-bgt , tot-bgt ]K", 4.5, 1, 12, ""],
-        [`Net\n$[${net_str}]K`, 4.25, 4, 14, "bold"],
-        [`15 Largest Transactions (mag > $${1})`, 4.25, 6.35, 14, "bold"],
+        ["OrigamiUSA Budget Report 2022-11", 4.25, 0.5, 11, "bold"],
+        [`Revenue\n$[${rev_str}]K`, 1, 0.75, 11, "bold"],
+        [`Expense\n$[${exp_str}]K`, 7.5, 0.75, 11, "bold"],
+        ["$[ mon-act , ytd-act , ytd-bgt , tot-bgt ]K", 4.25, 1, 9, ""],
+        [`Net Income\n$[${net_str}]K`, 4.25, 3.75, 11, "bold"],
+        [`15 Largest Transactions (mag > $${1})`, 4.25, 7, 11, "bold"],
     ]) {
         pdf.setFontSize(size).setFont("Helvetica", style)
             .text(text, x, y, {align: "center"}).fillStroke();
@@ -105,8 +105,15 @@ const construct_pdf = () => {
     //     });
     //     a1 = a2;
     // }
-    pdf.setFillColor("#FFFFFF").setDrawColor("#000000").setLineWidth(0.01);
-    pdf.rect(1, 6.5, 6.5, 4, "D");
+    const chart_data = [1,1,1,1,1,1,1,1,1,1].map(
+        () => ["dept", 80, 70, 80, 40, 20]);
+    for (let i = 0; i < chart_data[0].length; ++i) {
+        chart_data[0][i] = -chart_data[0][i];
+    }
+    const table_data = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1].map(
+        () => ["dept", "acct", "date", "desc", "amnt"]);
+    draw_chart(pdf, chart_data);
+    draw_table(pdf, table_data);
     const data = {
         fig: pdf.output("blob"),
         Tdata: undefined,
@@ -114,6 +121,97 @@ const construct_pdf = () => {
     };
     create_export_interface(new Date(), data);
     return pdf;
+};
+
+const draw_table = (pdf, trans_list) => {
+    const table_x = 0.75;
+    const table_y = 7.10;
+    const widths = [0.75, 0.75, 0.75, 4, 0.75];
+    const table_h = 3.35;
+    const table_w = widths.reduce((x, tot) => tot + x);
+    pdf.setDrawColor("#888888").setLineWidth(0.005);
+    pdf.rect(table_x, table_y, table_w, table_h, "D");
+    const headers = ["Dept", "Acct", "Date", "Description", "Amount"]; 
+    const lines = [headers].concat(trans_list);
+    const row_step = table_h/lines.length;
+    let y1 = table_y;
+    let fill_opt = "FD";
+    for (let row = 0; row < lines.length; ++row) {
+        let x1 = table_x;
+        const line = lines[row];
+        for (let col = 0; col < headers.length; ++ col) {
+            const w = widths[col];
+            const txt = line[col];
+            pdf.setFillColor("#EBEBEB");
+            pdf.rect(x1, y1, w, row_step, fill_opt);
+            pdf.setFontSize(8).setFont("Helvetica", "")
+                .text(txt, x1 + 0.1, y1 + row_step/2, {baseline: "middle"})
+                .fillStroke();
+            x1 += w;
+        }
+        y1 += row_step;
+        fill_opt = "D";
+    }
+};
+
+const draw_chart = (pdf, chart_data) => {
+    const chart_x = 1;
+    const chart_y = 4.1;
+    const chart_w = 6.75;
+    const chart_h = 2.5;
+    const y_step = (chart_h - 0.2)/10;
+    const label_step = 20;
+    let y = 4.2;
+    let label = 100;
+    const x1 = chart_x;
+    const x2 = x1 + chart_w;
+    pdf.setFontSize(8).setFont("Helvetica", "")
+       .text("Dollars ($ x1000)", chart_x, chart_y + chart_h/2 + 0.4, {
+            align: "center", baseline: "middle", angle: 90
+        });
+    for (let i = 0; i < 11; ++i) {
+        pdf.setDrawColor("#DDDDDD").setLineWidth(0.005);
+        pdf.line(x1, y, x2, y, "D");
+        pdf.setFontSize(8).setFont("Helvetica", "")
+           .text(`${label}`, x1 - 0.05, y, {align: "right", baseline: "middle"});
+        y += y_step;
+        label -= label_step;
+    };
+    pdf.setDrawColor("#AAAAAA").setLineWidth(0.005);
+    pdf.rect(chart_x, chart_y, chart_w, chart_h, "D");
+    const n = chart_data.length;
+    const sep = 0.1;
+    const y0 = chart_y + chart_h/2;
+    let x = chart_x + sep;
+    const bar_w = (chart_w - sep)/n - sep;
+    for (let i = 0; i < n; ++i) {
+        const [dept, net_bgt_tot, net_bgt_ytd, rev_act_ytd, exp_act_ytd, net_act_old] = chart_data[i];
+        const h = 240 - i/(n - 1)*90;
+        const fill = hsl2rgb(h, 1, 0.85); // L = 0.6 or 0.85
+        pdf.setFillColor(fill).setDrawColor("#AAAAAA");
+        const y1 = -net_bgt_tot/20*y_step;
+        pdf.rect(x, y0, bar_w, y1, "FD");
+        const fill2 = hsl2rgb(h, 1, 0.6); // L = 0.6 or 0.85
+        pdf.setFillColor(fill2).setDrawColor("#AAAAAA");
+        const y2 = -net_bgt_ytd/20*y_step;
+        pdf.rect(x + bar_w/4, y0, bar_w/2, y2, "FD");
+        pdf.setDrawColor("#000000").setLineWidth(0.005);
+        pdf.line(x, y0 + y2, x + bar_w, y0 + y2, "D");
+        const net_act_ytd = rev_act_ytd - exp_act_ytd;
+        const y3 = -net_act_ytd/20*y_step;
+        pdf.setDrawColor("#FF0000").setLineWidth(0.01);
+        pdf.line(x, y0 + y3, x + bar_w, y0 + y3, "D");
+        const y4 = -net_act_old/20*y_step;
+        pdf.setDrawColor("#FF0000").setLineWidth(0.01)
+            .setLineCap("round").setLineDashPattern([0, 0.02]);
+        pdf.line(x, y0 + y4, x + bar_w, y0 + y4, "D");
+        pdf.setLineDashPattern([]);
+        const y5 = ((y1 < 0) ? 60 : -80)/20*y_step;
+        pdf.setFontSize(8).setFont("Helvetica", "")
+            .text(`${dept}\n$[${rev_act_ytd}-${exp_act_ytd}]K\n$${net_act_ytd}K`, 
+                x + bar_w/2, y0 + y5, {align: "center"});
+        x += sep + bar_w;
+    }
 };
 
 const hsl2rgb = (h, s, l) => {
