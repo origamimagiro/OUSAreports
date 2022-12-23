@@ -28,9 +28,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="note.js" type="module"></script>
 <script type="module">
-// To Do:
-// - check date import
-// - deal with comma parsing for descriptions
 import { NOTE } from "./note.js";
 window.onload = () => {
     NOTE.clear_log();
@@ -193,13 +190,16 @@ const process_trans_data = (file) => {
         const amount = extract_amount(line[6], line[7], i);
         if (amount == undefined) { continue; }
 
+        const date = excelDate_2_JSDate(line[2]);
+        if (isNaN(date)) { continue; }
+
         const name = DEPT_MAP.get(dept);
         const account = line[1];
-        const date = excelDate_2_JSDate(line[2]);
         const description = line[5];
 
         out.push({name, dept, cobj, account, date, description, amount});
     }
+    out.sort((a, b) => (a.date < b.date) ? -1 : ((a.date == b.date) ? 0 : 1));
     return out;
 };
 
@@ -232,16 +232,26 @@ const export_data = (budget_data, trans_data) => {
         const data = budget_data[code];
         const line = [name];
         for (const field of BUDGET_FIELDS) {
-            line.push(data[field]);
+            line.push(`$ ${data[field].toFixed(0)}`);
         }
         budget_lines.push(line.join(","));
     }
     const trans_lines = [];
     trans_lines.push(TRANS_FIELDS.join(","));
-    for (const trans of trans_data) {
+    for (const data of trans_data) {
         const line = [];
         for (const field of TRANS_FIELDS) {
-            line.push(trans[field]);
+            let f = data[field];
+            if (field == "date") {
+                f = f.toLocaleDateString("en-GB", {
+                    day: "2-digit", month: "short", year: "numeric"
+                }).split(" ").join("-");
+            } else if (field == "description") {
+                f = `"${f}"`; 
+            } else if (field == "amount") {
+                f = `$ ${f.toFixed(2)}`;
+            }
+            line.push(f);
         }
         trans_lines.push(line.join(","));
     }
