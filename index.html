@@ -68,6 +68,82 @@ window.onload = () => {
     };
     NOTE.time("*** Setup Complete ***");
     NOTE.log("");
+    construct_pdf();
+    
+};
+
+const construct_pdf = () => {
+    const pdf = new jspdf.jsPDF({
+        format: "letter",
+        unit: "in",
+    });
+    const rev_str = [1,2,3,4].join(",");
+    const exp_str = [1,2,3,4].join(",");
+    const net_str = [1,2,3,4].join(",");
+    for (const [text, x, y, size, style] of [
+        ["OrigamiUSA Budget Report 2022-11", 4.25, 0.5, 14, "bold"],
+        [`Revenue\n$[${rev_str}]K`, 1, 1, 14, "bold"],
+        [`Expense\n$[${exp_str}]K`, 7.5, 1, 14, "bold"],
+        ["$[ mon-act , ytd-act , ytd-bgt , tot-bgt ]K", 4.5, 1, 12, ""],
+        [`Net\n$[${net_str}]K`, 4.25, 4, 14, "bold"],
+        [`15 Largest Transactions (mag > $${1})`, 4.25, 6.35, 14, "bold"],
+    ]) {
+        pdf.setFontSize(size).setFont("Helvetica", style)
+            .text(text, x, y, {align: "center"}).fillStroke();
+    }
+    // const n = 10;
+    // let a1 = 0;
+    // const step = 1/n;
+    // const gray = hsl2rgb(0, 0, 0.7);
+    // for (let i = 0; i < n; ++i) {
+    //     const a2 = a1 + step;
+    //     const h = 150 + i/(n - 1)*90;
+    //     const fill = hsl2rgb(h, 1, 0.85); // L = 0.6 or 0.85
+    //     draw_sector(pdf, {
+    //         x: 4.25, y: 7, r: 3, a1: a1, a2: a2, 
+    //         fill: fill, stroke: gray,
+    //     });
+    //     a1 = a2;
+    // }
+    pdf.setFillColor("#FFFFFF").setDrawColor("#000000").setLineWidth(0.01);
+    pdf.rect(1, 6.5, 6.5, 4, "D");
+    const data = {
+        fig: pdf.output("blob"),
+        Tdata: undefined,
+        trans: undefined,
+    };
+    create_export_interface(new Date(), data);
+    return pdf;
+};
+
+const hsl2rgb = (h, s, l) => {
+    const a = s*Math.min(l, 1 - l);
+    const f = (n, k = (n + h/30) % 12) => l - a*Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    const rgb = [f(0), f(8), f(4)].map((v) => {
+        const c = Math.round(v*255);
+        const hex = c.toString(16);
+        return (hex.length == 1) ? "0" + hex : hex;
+    });
+    return "#" + rgb.join("");
+};
+
+const draw_sector = (pdf, {x, y, r, a1, a2, fill, stroke}) => {
+    pdf.setDrawColor(stroke);
+    pdf.setFillColor(fill);
+    const path = [{op: "m", c: [x, y]}]; 
+    const tau = Math.PI*2;
+    const n = Math.ceil((a2 - a1)*100);
+    const step = tau*(a2 - a1)/n;
+    let ang = tau*a1;
+    for (let i = 0; i <= n; ++i) {
+        const next = {op: "l"};
+        next.c = [x + r*Math.cos(ang), y + r*Math.sin(ang)];
+        ang += step;
+        path.push(next);
+    }
+    path.push({op: "h", c: []}); 
+    pdf.path(path);
+    pdf.fillStroke();
 };
 
 const extract_first_sheet_name = (file, name) => {
