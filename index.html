@@ -156,29 +156,31 @@ const draw_table = (pdf, trans_list) => {
 
 const draw_chart = (pdf, chart_data) => {
     const chart_x = 1;
-    const chart_y = 4.1;
+    const chart_y = 4;
     const chart_w = 6.75;
-    const chart_h = 2.5;
+    const chart_h = 2.75;
     const y_step = (chart_h - 0.2)/10;
     const label_step = 20;
-    let y = 4.2;
+    let y = chart_y + 0.1;
     let label = 100;
     const x1 = chart_x;
     const x2 = x1 + chart_w;
     pdf.setFontSize(8).setFont("Helvetica", "")
-       .text("Dollars ($ x1000)", chart_x, chart_y + chart_h/2 + 0.4, {
+       .text("Dollars ($ x1000)", chart_x + 0.1, chart_y + chart_h/2 + 0.4, {
             align: "center", baseline: "middle", angle: 90
         });
     for (let i = 0; i < 11; ++i) {
         pdf.setDrawColor("#DDDDDD").setLineWidth(0.005);
         pdf.line(x1, y, x2, y, "D");
+        pdf.setDrawColor("#000000").setLineWidth(0.005);
+        pdf.line(x1 - 0.02, y, x1 + 0.04, y, "D");
         pdf.setFontSize(8).setFont("Helvetica", "")
            .text(`${label}`, x1 - 0.05, y, {align: "right", baseline: "middle"});
         y += y_step;
         label -= label_step;
     };
-    pdf.setDrawColor("#AAAAAA").setLineWidth(0.005);
-    pdf.rect(chart_x, chart_y, chart_w, chart_h, "D");
+    pdf.setDrawColor("#000000").setLineWidth(0.005);
+    pdf.line(chart_x, chart_y, chart_x, chart_y + chart_h, "D");
     const n = chart_data.length;
     const sep = 0.1;
     const y0 = chart_y + chart_h/2;
