@@ -15,11 +15,11 @@
     <table>
         <tr>
             <td>Budget XLSX</td>
-            <td><input type="file" id="budget"/></td>
+            <td><input type="file" id="budget" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/></td>
         </tr>
         <tr>
             <td>Transactions XLSX</td>
-            <td><input type="file" id="trans"/></td>
+            <td><input type="file" id="trans" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/></td>
         </tr>
     </table>
     <hr>
@@ -34,36 +34,52 @@ window.onload = () => {
     NOTE.time("*** Starting Setup ***");
     const budget_input = document.getElementById("budget");
     const trans_input = document.getElementById("trans");
+    const export_div = document.getElementById("export");
     let budget_data = undefined;
     let trans_data = undefined;
+    const reset = () => {
+        budget_data = undefined;
+        trans_data = undefined;
+        while (export_div.firstChild) {
+            export_div.removeChild(export_div.firstChild);
+        }
+    }
+    const budget_file_reader = new FileReader();
     budget_input.onchange = () => {
         NOTE.time("*** Importing Budget data ***");
-        const file_reader = new FileReader();
-        file_reader.onload = () => {
+        if (budget_data != undefined) {
+            reset();
+            trans_input.value = null;
+        }
+        budget_file_reader.onload = () => {
             NOTE.time(`File read: ${budget_input.value}`);
-            budget_data = process_budget_data(file_reader.result);
+            budget_data = process_budget_data(budget_file_reader.result);
             NOTE.time("*** Budget data import complete ***");
             // console.log(budget_data);
             NOTE.log("");
             if (trans_data != undefined) { 
-                process_files(budget_data, trans_data);
+                export_data(budget_data, trans_data);
             }
         };
-        file_reader.readAsArrayBuffer(budget_input.files[0]);
+        budget_file_reader.readAsArrayBuffer(budget_input.files[0]);
     };
+    const trans_file_reader = new FileReader();
     trans.onchange = () => {
         NOTE.time("*** Importing Transactions data ***");
-        const file_reader = new FileReader();
-        file_reader.onload = () => {
+        if (trans_data != undefined) {
+            reset();
+            budget_input.value = null;
+        }
+        trans_file_reader.onload = () => {
             NOTE.time(`File read: ${trans_input.value}`);
-            trans_data = process_trans_data(file_reader.result);
+            trans_data = process_trans_data(trans_file_reader.result);
             NOTE.time("*** Transation data import complete ***");
             NOTE.log("");
             if (budget_data != undefined) { 
                 export_data(budget_data, trans_data);
             }
         };
-        file_reader.readAsArrayBuffer(trans_input.files[0]);
+        trans_file_reader.readAsArrayBuffer(trans_input.files[0]);
     };
     NOTE.time("*** Setup Complete ***");
     NOTE.log("");
@@ -236,7 +252,7 @@ const draw_pie = (pdf, budget_list, x, y) => {
         pdf.setDrawColor("#FF0000").setLineWidth(0.01);
         draw_arc(pdf, {x, y, r: r3, a1, a2});
         const r4 = r * ((ytd_act - mon_act) / tot_bgt)**0.5;
-        pdf.setLineCap("round").setLineDashPattern([0, 0.02]);
+        pdf.setLineCap("round").setLineDashPattern([0, 0.03]);
         draw_arc(pdf, {x, y, r: r4, a1, a2});
         pdf.setLineCap("butt").setLineDashPattern([]);
         const amts = [mon_act, ytd_act, ytd_bgt, tot_bgt].map((a) => {
@@ -307,7 +323,7 @@ const draw_chart = (pdf, net_data) => {
         pdf.setLineWidth(0.01);
         pdf.line(x, y0 + y3, x + bar_w, y0 + y3, "D");
         const y4 = -net_act_old*scale;
-        pdf.setLineCap("round").setLineDashPattern([0, 0.02]);
+        pdf.setLineCap("round").setLineDashPattern([0, 0.03]);
         pdf.line(x, y0 + y4, x + bar_w, y0 + y4, "D");
         pdf.setLineCap("butt").setLineDashPattern([]);
         pdf.setLineWidth(0.005);
@@ -325,7 +341,7 @@ const draw_chart = (pdf, net_data) => {
 const draw_table = (pdf, trans_list) => {
     const table_x = 0.75;
     const table_y = 7.10;
-    const widths = [0.9, 1, 0.75, 3.6, 0.75];
+    const widths = [0.9, 1.25, 0.75, 3.35, 0.75];
     const table_h = 3.35;
     const table_w = widths.reduce((x, tot) => tot + x);
     pdf.setDrawColor("#888888").setLineWidth(0.005);
@@ -344,7 +360,7 @@ const draw_table = (pdf, trans_list) => {
             data.date.toLocaleDateString("en-GB", {
                 day: "2-digit", month: "short", year: "numeric"
             }).split(" ").join("-"),
-            data.description.substring(0, Math.min(75, data.description.length)),
+            data.description.substring(0, Math.min(70, data.description.length)),
             `$ ${data.amount.toFixed(2)}`,
         ];
         for (let col = 0; col < headers.length; ++ col) {
