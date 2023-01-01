@@ -26,6 +26,8 @@ else
         'Website'; ...
         'Awards'; ...
         'Archives'; ...
+        'Scholarship'; ...
+        'Other Donations'; ...
         'Source'; ...
         'Spec. Sess.'; ...
         'Ref. Lib.'; ...
@@ -40,11 +42,19 @@ else
         'Annual Gift'; ...
         'Publications'; ...
         'PCOC'; ...
+        'Chicago Con'; ...
         'COG serv.'; ...
-        'O. Connect'};
-    depts = [100;105;110;120;130;140;150;160;170; ...
+        'O. Connect'; ...
+        'Video Man.'; ...
+        'Unconvention'; ...
+        'WOD Event'; ...
+        'FoldFest Sp'; ...
+        'FoldFest Fa'; ...
+        'Gather'};
+    depts = [100;105;110;120;130;140;150;160;170;180;190; ...
              200;300;350;370;400;500;510;550; ...
-             600;610;620;630;700;800;850;900];
+             600;610;620;630;700;800;810;850; ...
+             900;910;950;951;952;953;955];
     deptMap = containers.Map(depts,labels);
     
     nl = length(labels);
@@ -52,7 +62,8 @@ else
 % Budget Processing
 
     % Import budget file as text
-    data = importdata([filename '-budget.xlsx']);
+    full_filename = [filename '-budget.xlsx'];
+    data = importdata(full_filename);
     n = length(data.data(:,1));
     data.dept = zeros(n,1);
     data.cobj = zeros(n,1);
@@ -103,17 +114,19 @@ else
     for i = [rev_start:rev_end,exp_start:exp_end]
         r = data.data(i,:);
         num = [r(7),r(4),r(1),r(5),r(2)];
-        if deptMap.isKey(data.dept(i)) % hopefully this will always be true...?
-            label = deptMap(data.dept(i));
-            if i > rev_end % rev comes before exp, so add in correct table cell
-                T{label,6:10} = T{label,6:10} + num;
+        if (floor(data.cobj(i) / 100) == 4) || (floor(data.cobj(i) / 100) == 5)
+            if deptMap.isKey(data.dept(i)) % hopefully this will always be true...?
+                label = deptMap(data.dept(i));
+                if i > rev_end % rev comes before exp, so add in correct table cell
+                    T{label,6:10} = T{label,6:10} + num;
+                else
+                    T{label,1:5} = T{label,1:5} + num;
+                end
             else
-                T{label,1:5} = T{label,1:5} + num;
-            end
-        else
-            if data.dept(i) ~= 1 % Not Error Account
-                disp('Found budget item with unknown department');
-                disp(data.dept(i));
+                if data.dept(i) ~= 1 % Not Error Account
+                    disp('Found budget item with unknown department');
+                    disp(data.dept(i));
+                end
             end
         end
     end
@@ -125,65 +138,6 @@ else
     T.net_act_mon = T.rev_act_mon-T.exp_act_mon;
     T.net_act_old = T.net_act_ytd-T.net_act_mon;
     T.mag_bgt_tot = max(abs(T.rev_bgt_tot),abs(T.exp_bgt_tot));
-    
-    r = 0.05;
-    
-    % Define 'other' threshold for displaying budget categories
-    % for revenue
-    TR = T(T.rev_bgt_tot >= max(T.rev_bgt_tot)*r,:);
-    TRO = T(T.rev_bgt_tot < max(T.rev_bgt_tot)*r,:);
-    TR = sortrows(TR,'rev_bgt_tot');
-    TR{'Other',:} = sum(T{T.rev_bgt_tot < max(T.rev_bgt_tot)*r,:},1);
-    TR = [TR(end,:);TR(1:end-1,:)];
-    TRO = sortrows(TRO,'rev_bgt_tot','descend');
-    
-    % for expenses
-    TE = T(T.exp_bgt_tot >= max(T.exp_bgt_tot)*r,:);
-    TEO = T(T.exp_bgt_tot < max(T.exp_bgt_tot)*r,:);
-    TE = sortrows(TE,'exp_bgt_tot');
-    TE{'Other',:} = sum(T{T.exp_bgt_tot < max(T.exp_bgt_tot)*r,:},1);
-    TE = [TE(end,:);TE(1:end-1,:)];
-    TEO = sortrows(TEO,'exp_bgt_tot','descend');
-   
-    % for net revenue
-    TN = T(abs(T.mag_bgt_tot) >= abs(max(T.mag_bgt_tot))*r,:);
-    TNO = T(abs(T.mag_bgt_tot) < abs(max(T.mag_bgt_tot))*r,:);
-    TN{'Other',:} = sum(T{abs(T.mag_bgt_tot) < abs(max(T.mag_bgt_tot))*r/2,:},1);
-    TN = sortrows(TN,'net_bgt_tot');
-    TN{'Total',:} = sum(T{:,:},1);
-
-    % Draw budgeting figure
-    fig = figure(1);
-    fig.Color = 'w';
-    fig.PaperOrientation = 'portrait';
-    fig.Visible = 'off';
-
-    s = 1.3;
-    
-    clf;
-    fig.PaperSize = [8.5 11]*s;
-    fig.PaperPosition = [0 0 8.5 11]*s;
-    fig.Position = [0 0 8.5 11]*70;
-   
-    % Plot revenue pie chart 
-    axes('Position',[0.75 6 3.75 3.75]/10);
-    plotPie(TR.rev_bgt_tot,TR.rev_act_ytd, ...
-            TR.rev_bgt_ytd,TR.rev_act_mon, ...
-            TR.Properties.RowNames);
-   
-    % Plot expenses pie chart 
-    axes('Position',[5.5 6 3.75 3.75]/10);
-    plotPie(TE.exp_bgt_tot,TE.exp_act_ytd, ...
-            TE.exp_bgt_ytd,TE.exp_act_mon, ...
-            TE.Properties.RowNames);
-    
-    % Plot net revenue bar graph
-    axes('Position',[1.25 4 7.75 2.5]/10);
-    plotNetBar(TN.net_bgt_tot,TN.net_bgt_ytd, ...
-               TN.net_act_ytd,TN.net_act_old, ...
-               TN.rev_act_ytd,TN.exp_act_ytd, ...
-               TN.Properties.RowNames);
-
            
 % Transaction Processing
 
@@ -207,13 +161,16 @@ else
             if ~isnan(debit(i)) || ~isnan(crdit(i))
                 cll = depts(i);
                 str = cll{1};
+                act = str2double(str(1:3));
                 dpt = str2double(str(5:7));
                 if length(str) >= 7 && deptMap.isKey(dpt)
-                    good(i) = 1;
-                    if ~isnan(debit(i))
-                        amnt(i) = -debit(i);
-                    elseif ~isnan(crdit(i))
-                        amnt(i) = crdit(i);
+                    if (floor(act(1) / 100) == 4) || (floor(act(1) / 100) == 5)
+                        good(i) = 1;
+                        if ~isnan(debit(i))
+                            amnt(i) = -debit(i);
+                        elseif ~isnan(crdit(i))
+                            amnt(i) = crdit(i);
+                        end
                     end
                 else
                     if dpt ~= 1 % Not Error account
@@ -266,6 +223,106 @@ else
     TS.amnt = [];
     TSO.amnt = [];
    
+    % Convert table cells to strings
+    rev_bgt_tot = cellstr(num2str(T.rev_bgt_tot,'$ %10.0f'));
+    rev_bgt_ytd = cellstr(num2str(T.rev_bgt_ytd,'$ %10.0f'));
+    rev_bgt_mon = cellstr(num2str(T.rev_bgt_mon,'$ %10.0f'));
+    rev_act_ytd = cellstr(num2str(T.rev_act_ytd,'$ %10.0f'));
+    rev_act_mon = cellstr(num2str(T.rev_act_mon,'$ %10.0f'));
+    exp_bgt_tot = cellstr(num2str(T.exp_bgt_tot,'$ %10.0f'));
+    exp_bgt_ytd = cellstr(num2str(T.exp_bgt_ytd,'$ %10.0f'));
+    exp_bgt_mon = cellstr(num2str(T.exp_bgt_mon,'$ %10.0f'));
+    exp_act_ytd = cellstr(num2str(T.exp_act_ytd,'$ %10.0f'));
+    exp_act_mon = cellstr(num2str(T.exp_act_mon,'$ %10.0f'));
+    net_bgt_tot = cellstr(num2str(T.net_bgt_tot,'$ %10.0f'));
+    net_bgt_ytd = cellstr(num2str(T.net_bgt_ytd,'$ %10.0f'));
+    net_act_ytd = cellstr(num2str(T.net_act_ytd,'$ %10.0f'));
+    net_act_mon = cellstr(num2str(T.net_act_mon,'$ %10.0f'));
+    net_act_old = cellstr(num2str(T.net_act_old,'$ %10.0f'));
+    mag_bgt_tot = cellstr(num2str(T.mag_bgt_tot,'$ %10.0f'));
+    
+    Tstr = table( ...
+        rev_bgt_tot,rev_bgt_ytd,rev_bgt_mon, ...
+        rev_act_ytd,rev_act_mon, ...
+        exp_bgt_tot,exp_bgt_ytd,exp_bgt_mon, ...
+        exp_act_ytd,exp_act_mon,net_bgt_tot, ...
+        net_bgt_ytd,net_act_ytd,net_act_mon, ...
+        net_act_old, mag_bgt_tot, ...
+        'RowNames',labels);
+    
+    datafile = ['dat/' filename '-ku_Tdata.csv'];
+    writetable(Tstr,datafile,'WriteRowNames',true);
+    
+    datafile = ['dat/' filename '-ku_trans.csv'];
+    writetable(TS,datafile);
+    warning('on','all');
+
+    T{'Fund+Scholar',:} = T{'Fundraising',:};
+    for i = 1:16
+      T{'Fund+Scholar',i} = T{'Fundraising',i} + T{'Scholarship',i};
+      T{'Scholarship',i} = 0;
+      T{'Fundraising',i} = 0;
+    end
+    % Define 'other' threshold for displaying budget categories
+    % for revenue
+    rR = 0.15;
+    TR = T(T.rev_bgt_tot >= max(T.rev_bgt_tot)*rR,:);
+    TRO = T(T.rev_bgt_tot < max(T.rev_bgt_tot)*rR,:);
+    TR = sortrows(TR,'rev_bgt_tot');
+    TR{'Other',:} = sum(T{T.rev_bgt_tot < max(T.rev_bgt_tot)*rR,:},1);
+    TR = [TR(end,:);TR(1:end-1,:)];
+    TRO = sortrows(TRO,'rev_bgt_tot','descend');
+    
+    % for expenses
+    rE = 0.12;
+    TE = T(T.exp_bgt_tot >= max(T.exp_bgt_tot)*rE,:);
+    TEO = T(T.exp_bgt_tot < max(T.exp_bgt_tot)*rE,:);
+    TE = sortrows(TE,'exp_bgt_tot');
+    TE{'Other',:} = sum(T{T.exp_bgt_tot < max(T.exp_bgt_tot)*rE,:},1);
+    TE = [TE(end,:);TE(1:end-1,:)];
+    TEO = sortrows(TEO,'exp_bgt_tot','descend');
+   
+    % for net revenue
+    rN = 0.15;
+    TN = T(abs(T.mag_bgt_tot) >= abs(max(T.mag_bgt_tot))*rN,:);
+    TNO = T(abs(T.mag_bgt_tot) < abs(max(T.mag_bgt_tot))*rN,:);
+    TN{'Other',:} = sum(T{abs(T.mag_bgt_tot) < abs(max(T.mag_bgt_tot))*rN,:},1);
+    TN = sortrows(TN,'net_bgt_tot');
+    TN{'Total',:} = sum(T{:,:},1);
+
+
+    % Draw budgeting figure
+    fig = figure(1);
+    fig.Color = 'w';
+    fig.PaperOrientation = 'portrait';
+    fig.Visible = 'off';
+
+    s = 1.3;
+    
+    clf;
+    fig.PaperSize = [8.5 11]*s;
+    fig.PaperPosition = [0 0 8.5 11]*s;
+    fig.Position = [0 0 8.5 11]*70;
+  
+    % Plot revenue pie chart 
+    axes('Position',[0.75 6 3.75 3.75]/10);
+    plotPie(TR.rev_bgt_tot,TR.rev_act_ytd, ...
+            TR.rev_bgt_ytd,TR.rev_act_mon, ...
+            TR.Properties.RowNames);
+  
+    % Plot expenses pie chart 
+    axes('Position',[5.5 6 3.75 3.75]/10);
+    plotPie(TE.exp_bgt_tot,TE.exp_act_ytd, ...
+            TE.exp_bgt_ytd,TE.exp_act_mon, ...
+            TE.Properties.RowNames);
+    
+    % Plot net revenue bar graph
+    axes('Position',[1.25 4 7.75 2.5]/10);
+    plotNetBar(TN.net_bgt_tot,TN.net_bgt_ytd, ...
+               TN.net_act_ytd,TN.net_act_old, ...
+               TN.rev_act_ytd,TN.exp_act_ytd, ...
+               TN.Properties.RowNames);
+
     % Draw table 
     warning('off','all');
     columnname =   {'Dept','Acct','Date','Description','Amount'};
@@ -347,39 +404,6 @@ else
   	saveas(fig,['figs/' filename '.pdf']);
     close(fig);
 
-    % Convert table cells to strings
-    rev_bgt_tot = cellstr(num2str(T.rev_bgt_tot,'$ %10.0f'));
-    rev_bgt_ytd = cellstr(num2str(T.rev_bgt_ytd,'$ %10.0f'));
-    rev_bgt_mon = cellstr(num2str(T.rev_bgt_mon,'$ %10.0f'));
-    rev_act_ytd = cellstr(num2str(T.rev_act_ytd,'$ %10.0f'));
-    rev_act_mon = cellstr(num2str(T.rev_act_mon,'$ %10.0f'));
-    exp_bgt_tot = cellstr(num2str(T.exp_bgt_tot,'$ %10.0f'));
-    exp_bgt_ytd = cellstr(num2str(T.exp_bgt_ytd,'$ %10.0f'));
-    exp_bgt_mon = cellstr(num2str(T.exp_bgt_mon,'$ %10.0f'));
-    exp_act_ytd = cellstr(num2str(T.exp_act_ytd,'$ %10.0f'));
-    exp_act_mon = cellstr(num2str(T.exp_act_mon,'$ %10.0f'));
-    net_bgt_tot = cellstr(num2str(T.net_bgt_tot,'$ %10.0f'));
-    net_bgt_ytd = cellstr(num2str(T.net_bgt_ytd,'$ %10.0f'));
-    net_act_ytd = cellstr(num2str(T.net_act_ytd,'$ %10.0f'));
-    net_act_mon = cellstr(num2str(T.net_act_mon,'$ %10.0f'));
-    net_act_old = cellstr(num2str(T.net_act_old,'$ %10.0f'));
-    mag_bgt_tot = cellstr(num2str(T.mag_bgt_tot,'$ %10.0f'));
-    
-    Tstr = table( ...
-        rev_bgt_tot,rev_bgt_ytd,rev_bgt_mon, ...
-        rev_act_ytd,rev_act_mon, ...
-        exp_bgt_tot,exp_bgt_ytd,exp_bgt_mon, ...
-        exp_act_ytd,exp_act_mon,net_bgt_tot, ...
-        net_bgt_ytd,net_act_ytd,net_act_mon, ...
-        net_act_old, mag_bgt_tot, ...
-        'RowNames',labels);
-    
-    datafile = ['dat/' filename '-ku_Tdata.csv'];
-    writetable(Tstr,datafile,'WriteRowNames',true);
-    
-    datafile = ['dat/' filename '-ku_trans.csv'];
-    writetable(TS,datafile);
-    warning('on','all');
 end
 end
 
