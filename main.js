@@ -174,10 +174,10 @@ const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
         const db = b.date;
         return (da == db) ? 0 : ((da < db) ? -1 : 1);
     });
-    const smallest_trans = trans_list.reduce((s, a) => {
-        const ma = Math.abs(a.amount);
-        return (ma < s) ? ma : s;
-    }, Infinity).toFixed(2);
+    const largest_trans = trans_list.reduce((s, a) => {
+        const ma = a.amount;
+        return (ma > s) ? ma : s;
+    }, -Infinity).toFixed(2);
     const date = trans_data[0].date;
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const year = String(date.getFullYear());
@@ -187,7 +187,7 @@ const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
         [`Expense\n$[${str.exp}]K`, 7.5, 0.75, 11, "bold"],
         ["$[ mon-act , ytd-act , ytd-bgt , tot-bgt ]K", 4.25, 1, 9, ""],
         [`Net Income\n$[${str.net}]K`, 4.25, 3.75, 11, "bold"],
-        [`15 Largest Transactions (mag > $${smallest_trans})`, 4.25, 7, 11, "bold"],
+        [`15 Largest Expenses (amt <= -$${-largest_trans})`, 4.25, 7, 11, "bold"],
     ]) {
         pdf.setFontSize(size).setFont("Helvetica", style)
             .text(text, x, y, {align: "center"}).fillStroke();
@@ -601,9 +601,9 @@ const export_data = (budget_data, trans_data) => {
         return (ma == mb) ? 0 : ((ma < mb) ? 1 : -1);
     });
     trans_data.sort((a, b) => {
-        const ma = Math.abs(a.amount);
-        const mb = Math.abs(b.amount);
-        return (ma == mb) ? 0 : ((ma < mb) ? 1 : -1);
+        const ma = a.amount;
+        const mb = b.amount;
+        return (ma == mb) ? 0 : ((ma < mb) ? -1 : 1);
     });
     const pdf = construct_pdf({rev_data, exp_data, net_data, trans_data});
     trans_data.sort((a, b) => {
@@ -650,7 +650,7 @@ const DEPTS_CODE_NAME = [
     ["160", "Awards"],
     ["170", "Archives"],
     ["180", "Scholarship"],
-    ["190", "Other Donations"],
+    ["190", "Social Media"],
     ["200", "Source"],
     ["300", "Spec. Sess."],
     ["350", "Ref. Lib."],
