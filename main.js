@@ -25,9 +25,8 @@ window.onload = () => {
             NOTE.time(`File read: ${budget_input.value}`);
             budget_data = process_budget_data(budget_file_reader.result);
             NOTE.time("*** Budget data import complete ***");
-            // console.log(budget_data);
             NOTE.log("");
-            if (trans_data != undefined) { 
+            if (trans_data != undefined) {
                 export_data(budget_data, trans_data);
             }
         };
@@ -45,7 +44,7 @@ window.onload = () => {
             trans_data = process_trans_data(trans_file_reader.result);
             NOTE.time("*** Transation data import complete ***");
             NOTE.log("");
-            if (budget_data != undefined) { 
+            if (budget_data != undefined) {
                 export_data(budget_data, trans_data);
             }
         };
@@ -53,7 +52,6 @@ window.onload = () => {
     };
     NOTE.time("*** Setup Complete ***");
     NOTE.log("");
-    
 };
 
 const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
@@ -81,7 +79,7 @@ const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
                 maxs[cat] = line.tot_bgt;
             }
         }
-        sums[cat] = [sums[cat].mon_act, sums[cat].ytd_act, 
+        sums[cat] = [sums[cat].mon_act, sums[cat].ytd_act,
                      sums[cat].ytd_bgt, sums[cat].tot_bgt];
     }
     maxs.net = net_data.reduce((s, a) => {
@@ -105,7 +103,7 @@ const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
             for (const field of ["mon_act", "ytd_act", "ytd_bgt", "tot_bgt"]) {
                 rev_other[field] += line[field];
             }
-        } 
+        }
     }
     rev_filt.push(rev_other);
 
@@ -119,24 +117,24 @@ const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
             for (const field of ["mon_act", "ytd_act", "ytd_bgt", "tot_bgt"]) {
                 exp_other[field] += line[field];
             }
-        } 
+        }
     }
     exp_filt.push(exp_other);
-    
+
     const net_filt = [];
     const net_other = {
-        dept: "Other", 
-        net_bgt_tot: 0, 
-        net_bgt_ytd: 0, 
-        rev_act_ytd: 0, 
+        dept: "Other",
+        net_bgt_tot: 0,
+        net_bgt_ytd: 0,
+        rev_act_ytd: 0,
         exp_act_ytd: 0,
         net_act_old: 0,
     };
-    const net_total = { 
-        dept: "Total", 
-        net_bgt_tot: 0, 
-        net_bgt_ytd: 0, 
-        rev_act_ytd: 0, 
+    const net_total = {
+        dept: "Total",
+        net_bgt_tot: 0,
+        net_bgt_ytd: 0,
+        rev_act_ytd: 0,
         exp_act_ytd: 0,
         net_act_old: 0,
     };
@@ -145,13 +143,13 @@ const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
         if (Math.abs(line.mag_bgt_tot) >= net_lim) {
             net_filt.push(line);
         } else {
-            for (const field of ["net_bgt_tot", "net_bgt_ytd", "rev_act_ytd", 
+            for (const field of ["net_bgt_tot", "net_bgt_ytd", "rev_act_ytd",
                 "exp_act_ytd", "net_act_old",
             ]) {
                 net_other[field] += line[field];
             }
-        } 
-        for (const field of ["net_bgt_tot", "net_bgt_ytd", "rev_act_ytd", 
+        }
+        for (const field of ["net_bgt_tot", "net_bgt_ytd", "rev_act_ytd",
             "exp_act_ytd", "net_act_old",
         ]) {
             net_total[field] += line[field];
@@ -164,7 +162,7 @@ const construct_pdf = ({rev_data, exp_data, net_data, trans_data}) => {
         return (ma == mb) ? 0 : ((ma < mb) ? -1 : 1);
     });
     net_filt.push(net_total);
-    
+
     const trans_list = [];
     for (let i = 0; i < 15; ++i) {
         trans_list.push(trans_data[i]);
@@ -232,10 +230,11 @@ const draw_pie = (pdf, budget_list, x, y) => {
         const ang = (a1 + a2)*Math.PI;
         const tx = x + r*1.4*Math.cos(ang);
         const ty = y + r*1.25*Math.sin(ang);
+        a1 = a2;
+        if (Number.isNaN(tx) || Number.isNaN(ty)) { continue; }
         pdf.setFontSize(6).setFont("Helvetica", "")
             .text(txt, tx, ty, {baseline: "middle", align: "center"})
             .fillStroke();
-        a1 = a2;
     }
 };
 
@@ -302,7 +301,7 @@ const draw_chart = (pdf, net_data) => {
         const exp_round = Math.round(exp_act_ytd/1000, 0);
         const net_round = Math.round(net_act_ytd/1000, 0);
         pdf.setFontSize(6).setFont("Helvetica", "")
-            .text(`${dept}\n$[${rev_round}-${exp_round}]K\n$${net_round}K`, 
+            .text(`${dept}\n$[${rev_round}-${exp_round}]K\n$${net_round}K`,
                 x + bar_w/2, y0 + y5, {align: "center"});
         x += sep + bar_w;
     }
@@ -316,7 +315,7 @@ const draw_table = (pdf, trans_list) => {
     const table_w = widths.reduce((x, tot) => tot + x);
     pdf.setDrawColor("#888888").setLineWidth(0.005);
     pdf.rect(table_x, table_y, table_w, table_h, "D");
-    const headers = ["Dept", "Acct", "Date", "Description", "Amount"]; 
+    const headers = ["Dept", "Acct", "Date", "Description", "Amount"];
     const lines = [headers].concat(trans_list);
     const row_step = table_h/lines.length;
     let y1 = table_y;
@@ -360,7 +359,7 @@ const hsl2rgb = (h, s, l) => {
 };
 
 const draw_arc = (pdf, {x, y, r, a1, a2, stroke}) => {
-    const path = []; 
+    const path = [];
     const tau = Math.PI*2;
     const n = Math.ceil((a2 - a1)*100);
     const step = tau*(a2 - a1)/n;
@@ -376,7 +375,7 @@ const draw_arc = (pdf, {x, y, r, a1, a2, stroke}) => {
 };
 
 const draw_sector = (pdf, {x, y, r, a1, a2, fill, stroke}) => {
-    const path = [{op: "m", c: [x, y]}]; 
+    const path = [{op: "m", c: [x, y]}];
     const tau = Math.PI*2;
     const n = Math.ceil((a2 - a1)*100);
     const step = tau*(a2 - a1)/n;
@@ -387,7 +386,7 @@ const draw_sector = (pdf, {x, y, r, a1, a2, fill, stroke}) => {
         ang += step;
         path.push(next);
     }
-    path.push({op: "h", c: []}); 
+    path.push({op: "h", c: []});
     pdf.path(path);
     pdf.fillStroke();
 };
@@ -404,11 +403,11 @@ const extract_first_sheet_name = (file, name) => {
 
 const check_cobj_dept = (cobj_dept, line) => {
     if (!(
-        (typeof cobj_dept == "string") && 
-        (cobj_dept.length == 7) && 
+        (typeof cobj_dept == "string") &&
+        (cobj_dept.length == 7) &&
         (cobj_dept[3] == "-"))
     ) {
-        return;   // not a valid format 
+        return;   // not a valid format
     }
     const [cobj, dept] = cobj_dept.split("-");
     if (!DEPT_MAP.has(dept)) {
@@ -476,7 +475,7 @@ const process_budget_data = (file) => {
             data[key] += Number(line[col]);
         }
     }
-    
+
     NOTE.time("Calculating additional info from imported data");
     for (const code in out) {
         const data = out[code];
@@ -530,15 +529,15 @@ const create_export_interface = (date, data) => {
     const year = String(date.getFullYear());
     const export_div = document.getElementById("export");
     for (const [label, type, ext] of [
-        ["PDF", "fig", "pdf"], 
-        ["Budget Summary", "Tdata", "csv"], 
-        ["Transactions", "trans", "csv"], 
+        ["PDF", "fig", "pdf"],
+        ["Budget Summary", "Tdata", "csv"],
+        ["Transactions", "trans", "csv"],
     ]) {
         const link = document.createElement("a");
         const button = document.createElement("input");
         const d = data[type] ? window.URL.createObjectURL(data[type]) : "";
-        export_div.appendChild(link); 
-        link.appendChild(button); 
+        export_div.appendChild(link);
+        link.appendChild(button);
         link.setAttribute("download", `${year}_${month}_${type}.${ext}`);
         link.setAttribute("href", d);
         button.setAttribute("type", "button");
@@ -562,27 +561,27 @@ const export_data = (budget_data, trans_data) => {
         budget_lines.push(line.join(","));
         if (data.rev_bgt_tot > 0) {
             rev_data.push({
-                tot_bgt: data.rev_bgt_tot, 
+                tot_bgt: data.rev_bgt_tot,
                 ytd_bgt: data.rev_bgt_ytd,
-                ytd_act: data.rev_act_ytd, 
-                mon_act: data.rev_act_mon, 
+                ytd_act: data.rev_act_ytd,
+                mon_act: data.rev_act_mon,
                 label: name,
             });
         }
         if (data.exp_bgt_tot > 0) {
             exp_data.push({
-                tot_bgt: data.exp_bgt_tot, 
+                tot_bgt: data.exp_bgt_tot,
                 ytd_bgt: data.exp_bgt_ytd,
-                ytd_act: data.exp_act_ytd, 
-                mon_act: data.exp_act_mon, 
+                ytd_act: data.exp_act_ytd,
+                mon_act: data.exp_act_mon,
                 label: name,
             });
         }
         net_data.push({
-            dept: name, 
-            net_bgt_tot: data.net_bgt_tot, 
-            net_bgt_ytd: data.net_bgt_ytd, 
-            rev_act_ytd: data.rev_act_ytd, 
+            dept: name,
+            net_bgt_tot: data.net_bgt_tot,
+            net_bgt_ytd: data.net_bgt_ytd,
+            rev_act_ytd: data.rev_act_ytd,
             exp_act_ytd: data.exp_act_ytd,
             net_act_old: data.net_act_old,
             mag_bgt_tot: data.mag_bgt_tot,
@@ -622,7 +621,7 @@ const export_data = (budget_data, trans_data) => {
                     day: "2-digit", month: "short", year: "numeric"
                 }).split(" ").join("-");
             } else if (field == "description") {
-                f = `"${f}"`; 
+                f = `"${f}"`;
             } else if (field == "amount") {
                 f = `$ ${f.toFixed(2)}`;
             }
@@ -700,11 +699,11 @@ const BUDGET_FIELDS = [
 ];
 
 const TRANS_FIELDS = [
-    "name", 
-    "dept", 
-    "cobj", 
-    "account", 
-    "date", 
-    "description", 
+    "name",
+    "dept",
+    "cobj",
+    "account",
+    "date",
+    "description",
     "amount",
 ];
